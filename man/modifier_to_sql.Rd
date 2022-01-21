@@ -9,7 +9,7 @@ modifier_to_sql(x, table, con = NULL)
 \arguments{
 \item{x}{\code{dcmodify::modifier()} object}
 
-\item{table}{table name}
+\item{table}{table object}
 
 \item{con}{optional connection}
 }
@@ -17,5 +17,5 @@ modifier_to_sql(x, table, con = NULL)
 \code{list} of sql UPDATE statements.
 }
 \description{
-Extract UPDATE statements from modifier object.
+Extract UPDATE statements from modifier object as a list of SQL statements.
 }

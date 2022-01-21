@@ -1,22 +1,22 @@
 #' Extract UPDATE statements
 #'
-#' Extract UPDATE statements from modifier object.
+#' Extract UPDATE statements from modifier object as a list of SQL statements.
 #' @importFrom dplyr tbl_vars
 #' @export
 #' @param x `dcmodify::modifier()` object
-#' @param table table name
+#' @param table table object
 #' @param con optional connection
 #' @return `list` of sql UPDATE statements.
 modifier_to_sql <- function(x, table, con = NULL){
   stopifnot(inherits(x, "modifier"))
   tc <- get_table_con(table, con, copy=FALSE)
-
+  # print(list(table_ident = tc$table_ident))
   asgn <- get_assignments(x)
-  lapply(asgn, update_stmt, table=tc$table_name, con=tc$con)
+  lapply(asgn, update_stmt, table_ident=tc$table_ident, con=tc$con)
 }
 
 #' @importFrom dbplyr ident ident_q
-alter_stmt <- function(x, table, table_name){
+alter_stmt <- function(x, table, table_ident){
   org_vars <- dplyr::tbl_vars(table)
 
   # just for querying meta data
@@ -42,7 +42,7 @@ alter_stmt <- function(x, table, table_name){
 
   lapply(new_vars$name, function(n){
     build_sql(
-      "ALTER TABLE ", ident_q(table_name),
+      "ALTER TABLE ", table_ident,
       "\nADD COLUMN ", ident(n), " ", sql(new_vars$type[new_vars$name == n]), ";"
       , con = con
       )
@@ -50,7 +50,7 @@ alter_stmt <- function(x, table, table_name){
 }
 
 #' @importFrom dbplyr translate_sql build_sql sql
-update_stmt <- function(x, table, con, ..., na.condition=FALSE){
+update_stmt <- function(x, table_ident, con, ..., na.condition=FALSE){
   # assumes that all columns are available...
 
   if (!is_assignment(x) && !is.symbol(x[[2]])){
@@ -73,7 +73,7 @@ update_stmt <- function(x, table, con, ..., na.condition=FALSE){
     where <- build_sql("WHERE ", where, con = con)
   }
 
-  build_sql("UPDATE ", sql(table)
+  build_sql("UPDATE ", table_ident
            ,  "\n", "SET ", ident(varname)
            ,         " = ", value
            ,  "\n", where
@@ -84,18 +84,23 @@ update_stmt <- function(x, table, con, ..., na.condition=FALSE){
 
 #' Write generated sql
 #'
-#' Writes generated sql to file
+#' Writes the generated sql to a file. The script contains ALTER and
+#' UPDATE statements and can be used as documentation.
+#' Note that when this script is run on the database it will change the
+#' original table. This differs from the default behavior of dcmodify which
+#' works on a (temporary) copy of the table.
 #' @export
 #' @param x `dcmodify::modifier()` object with rules to be written
 #' @param table either a [dplyr::tbl()] object or a `character` with table name
-#' @param con optional, when `table` is a character a dbi connection.
+#' @param con optional, when `table` is a character, a dbi connection.
 #' @param file to which the sql will be written.
 #' @param ... not used
+#' @return `character` sql script with all statements.
 #' @importFrom validate description label origin
 dump_sql <- function(x, table, con = NULL, file = stdout(), ...){
   tc <- get_table_con(table, con, copy=FALSE)
 
-  alt <- alter_stmt(x, tc$table, tc$table_name)
+  alt <- alter_stmt(x, tc$table, tc$table_ident)
   sql <- modifier_to_sql(x, tc$table)
 
   # TODO write expression!
@@ -140,6 +145,13 @@ dump_sql <- function(x, table, con = NULL, file = stdout(), ...){
   invisible(sql)
 }
 
+#' Get table connection
+#'
+#' Gets a table connection, possibly a copy of the table.
+#' @param table either a character or a tbl_sql object
+#' @param con dbi connection
+#' @param copy should a copy of the table be generated?
+#' @keywords internal
 get_table_con <- function(table, con = NULL, copy = NULL){
   if (inherits(table, "tbl_sql")){
     if (!missing(con) && !is.null(con)){
@@ -156,18 +168,20 @@ get_table_con <- function(table, con = NULL, copy = NULL){
       copy <- TRUE
     }
 
-    table_name <- dbplyr::remote_name(table)
+    table_ident <- dbplyr::remote_name(table)
 
     if (isTRUE(copy)){
-      table_name <- random_name(table_name)
+      table_name <- random_name()
+      # table_name <- random_name(table_name)
       table <- dplyr::compute(table, name = table_name)
+      table_ident <- dbplyr::remote_name(table) %||% ident(table_name)
     }
     con <- dbplyr::remote_con(table)
   } else {
-    table_name <- table
+    table_ident <- ident(table)
     table <- dplyr::tbl(con, table)
   }
-  list(table = table, con = con, table_name = table_name)
+  list(table = table, con = con, table_ident = table_ident)
 }
 
 sql_comment <- function(..., sep = ""){
