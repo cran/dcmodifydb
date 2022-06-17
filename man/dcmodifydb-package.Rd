@@ -6,9 +6,7 @@
 \alias{dcmodifydb-package}
 \title{dcmodifydb: Modifying Rules on a DataBase}
 \description{
-Apply modification rules from R package 'dcmodify' to the database, 
-  prescribing and documenting deterministic data cleaning steps on records in a database.
-  The rules are translated into SQL statements using R package 'dbplyr'.
+Apply modification rules from R package 'dcmodify' to the database, prescribing and documenting deterministic data cleaning steps on records in a database. The rules are translated into SQL statements using R package 'dbplyr'.
 }
 \seealso{
 Useful links:
@@ -20,6 +18,11 @@ Useful links:
 }
 \author{
 \strong{Maintainer}: Edwin de Jonge \email{edwindjonge@gmail.com} (\href{https://orcid.org/0000-0002-6580-4718}{ORCID})
+
+Other contributors:
+\itemize{
+  \item Wytze Gelderloos [contributor]
+}
 
 }
 \keyword{internal}

@@ -1,0 +1,45 @@
+version: '3.7'
+
+
+volumes:
+  pgdata:
+
+
+
+
+services:
+    db_sql_server_odbc:
+      container_name: "db_sql_server_odbc"
+      image: mcr.microsoft.com/mssql/server:2019-latest
+      volumes:
+        - type: "bind"
+          source: "tests/integration_tests/sql_server_odbc/database"
+          target: /pgdata
+      environment:
+        - SA_PASSWORD=AdMiN_123       # password has to be atleast 8 characters for SQL server
+        - ACCEPT_EULA=Y
+      ports:
+        - "1433:1433"
+
+    test_sql_server_odbc:
+      tty: true
+      container_name: test_sql_server_odbc
+      command: bash run_tests.sh
+      build: 
+        context: ../../../
+        dockerfile: tests/integration_tests/SQL_server_odbc/dcmodifyDB/Dockerfile
+      environment:
+        CONNECTION_TYPE: "mssql"
+        DB_HOST: "db_sql_server_odbc"
+        DB_NAME: "master"
+        USER: "sa"
+        PASSWORD: "AdMiN_123"
+        PORT: "1433"
+        DRIVER: "ODBC Driver 17 for SQL Server"
+      depends_on:
+        - "db_sql_server_odbc"
+
+
+
+
+networks: {mynetwork: {}}

@@ -41,18 +41,16 @@ describe("modify",{
     d <- tbl_memdb(data.frame(x = 1:2), "d4")
     m <- modifier(if (x > 1) x <- 1, if (y > 2) x <- 2)
 
-    expect_error({
-      expect_warning({
+    expect_snapshot({
         d_m <- modify(d, m, copy = FALSE)
-      })
-    })
+    }, error = TRUE)
 
     # check if the table in the db is really changed...
     expect_equal(as.data.frame(d), data.frame(x = c(1,2)))
   })
 
   it("adds a new column", {
-    d <- tbl_memdb(data.frame(x = 1:2), "d5")
+    d <- memdb_frame(x = 1:2)
     m <- modifier(if (x > 1) y <- "two" else y <- "one")
     d_m <- modify(d, m, copy=TRUE)
 
@@ -83,6 +81,32 @@ describe("modify",{
     m <- modifier(x[is.na(x)] <- 2)
     d_m <- modify(d, m, copy=TRUE)
     expect_equal(as.data.frame(d_m), data.frame(x = c(1,2)))
+  })
+
+  it("handles a non-working rule",{
+    d <- memdb_frame(x = c(1,2))
+    m <- modifier(if (y>1) x <- 3)
+
+    expect_error({
+      expect_warning({
+        d_m <- modify(d, m, copy=TRUE)
+      })
+    })
+
+    expect_warning({
+      d_m <- modify(d, m, copy=TRUE, ignore_nw=TRUE)
+    })
+
+    expect_equal(as.data.frame(d_m), as.data.frame(d))
+
+  })
+
+  it("handles %in% guards", {
+    m <- modifier(if (nace %in% "A") {turnover <- 0})
+    d <- dbplyr::memdb_frame(nace = "A", turnover = 1000)
+
+    d_m <- modify(d, m, copy=TRUE)
+    expect_equal(as.data.frame(d_m), data.frame(nace = "A", turnover=0))
   })
 
 })

@@ -27,6 +27,7 @@ WHERE `gear` > 3.0;"))
     d <- tbl_memdb(mtcars, "na.c")
     tc <- get_table_con(d, copy=FALSE)
     update <- update_stmt( asgn[[1]]
+                         , table  = tc$table
                          , table_ident = tc$table_ident
                          , con = tc$con
                          , na.condition = TRUE
@@ -39,12 +40,13 @@ WHERE COALESCE(`gear` > 3.0,1);"))
   })
 
   it("generates update statements",{
+    skip_on_cran()
     m <- modifier( gear[is.na(gear)] <- 0L)
     sql <- modifier_to_sql(m, tbl_mtcars)
     expect_equal(sql[[1]], sql(
 "UPDATE `mtcars`
 SET `gear` = 0
-WHERE ((`gear`) IS NULL);"))
+WHERE (`gear` IS NULL);"))
   })
 
 })

@@ -2,9 +2,16 @@
 % Please edit documentation in R/modify.R
 \name{modify,ANY,modifier-method}
 \alias{modify,ANY,modifier-method}
-\title{Modify records in a tbl}
+\title{Apply corrections/derivations to a db table}
 \usage{
-\S4method{modify}{ANY,modifier}(dat, x, copy = NULL, transaction = !isTRUE(copy), ...)
+\S4method{modify}{ANY,modifier}(
+  dat,
+  x,
+  copy = NULL,
+  transaction = !isTRUE(copy),
+  ignore_nw = FALSE,
+  ...
+)
 }
 \arguments{
 \item{dat}{\code{\link[=tbl_sql]{tbl_sql()}} object, table in a SQL database}
@@ -15,18 +22,22 @@
 
 \item{transaction}{if \code{TRUE} use one transaction for all modifications.}
 
+\item{ignore_nw}{if \code{TRUE} non-working rules are ignored}
+
 \item{...}{unused}
 }
 \value{
 \code{\link[=tbl_sql]{tbl_sql()}} object, referencing the modified table object.
 }
 \description{
-Modify records in a database table using modification rules specified
-in a modifier object.
+Change records in a database table using modification rules specified
+in a \code{\link[=modifier]{modifier()}} object. This is the main function of package \code{dcmodifydb}.
+For more information see the vignettes.
 }
 \details{
 The modification rules are translated into SQL update statements
 and executed on the table.
+
 Note that
 \itemize{
 \item by default the updates are executed on a copy of the table.
@@ -55,10 +66,16 @@ tbl_mtcars <- dplyr::tbl(con, "mtcars")
 # "Houston, we have a table"
 head(tbl_mtcars)
 
-# lets modify on a copy of the table...
+# lets modify on a temporary copy of the table..
+# this copy is only visible to the current connection
 tbl_m <- modify(tbl_mtcars, m, copy=TRUE)
+
+
 # and gear has changed...
 head(tbl_m)
+
+# If one certain about the changes, then you can overwrite the table with the changes
+tbl_m <- modify(tbl_mtcars, m, copy=FALSE)
 
 dbDisconnect(con)
 }

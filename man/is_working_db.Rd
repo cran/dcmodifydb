@@ -2,20 +2,46 @@
 % Please edit documentation in R/is_working.R
 \name{is_working_db}
 \alias{is_working_db}
-\title{Check if UPDATE statement is functional}
+\title{Rule check on the database}
 \usage{
-is_working_db(updates, tab, n = 2)
+is_working_db(m, tab, n = 2, warn = TRUE, sql_warn = FALSE)
 }
 \arguments{
-\item{updates}{\code{list} of update statements object (\code{\link[=modifier_to_sql]{modifier_to_sql()}})}
+\item{m}{\code{\link[=modifier]{modifier()}} object}
 
 \item{tab}{tbl object}
 
 \item{n}{number of records to use in this check}
+
+\item{warn}{generate warnings for non-working rules}
+
+\item{sql_warn}{generate warnings with sql code for non-working rules}
 }
 \value{
 \code{logical} with which statements are working
 }
 \description{
-Get an indication of which R statement can be executed on the SQL database.
+Get an indication of which R statement can be executed on the SQL
+database.
+dcmodifydb translates R statements into SQL statement. This works for
+many scenario's but not all R statements can be translated into SQL.
+This function checks whether a modification rule can be executed on the database.
+}
+\examples{
+person <- dbplyr::memdb_frame(age = 12, salary = 3000)
+
+library(dcmodify)
+
+correction_rules <- modifier( if (age < 16) salary = 0
+                            , if (retired == TRUE) salary = 0
+                            )
+
+# second rule is not working, because retired is not available
+is_working_db(correction_rules, person, warn = FALSE)
+
+# show warnings (default)
+is_working_db(correction_rules, person, warn = TRUE)
+
+# show the sql statements that are not working
+is_working_db(correction_rules, person, warn = FALSE, sql_warn = TRUE)
 }

@@ -1,0 +1,197 @@
+---
+title: "dcmodifydb"
+subtitle: "Documented reproducible data correction on a database"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{dcmodifydb}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Introduction
+
+The goal of dcmodifydb is to apply modification rules specified with `dcmodify` 
+on a database table, allowing for documented, reproducable data cleaning adjustments
+in a database.
+
+`dcmodify` separates **intent** from **execution**: a user specifies the _what_
+, _why_ and _how_ of an automatic data change and uses `dcmodifydb` to execute 
+them on a `tbl` database table.
+
+`dcmodidfydb` is optimized and restricted to database tables that can be accessed 
+within R through `DBI`. It uses the `dbplyr` package to translate the 
+data correction rules in R syntax into SQL syntax. The advantage of this 
+approach is that all data correction is done within the database, which may be 
+a requirement of your organisation or because the data table is simply too 
+large to be held in memory. 
+A disadvantage is that not all R statements can be translated into SQL statement,
+so `dcmodifydb` is more restricted than `dcmodify` which can use the full R
+potential. Nonetheless `dcmodifydb` may be sufficient and efficient for many
+use cases.
+
+For common error scenario's see `vignette("scenarios", package="dcmodifydb")`. 
+For the supported syntax for specifying rules see `vignette("syntax", package="dcmodifydb")`.
+
+## Installation
+
+`dcmodifydb` can be installed with
+
+```{r, eval=FALSE}
+install.packages("dcmodifydb")
+```
+and loaded with:
+
+```{r setup}
+library(dcmodify)
+library(dcmodifydb)
+```
+
+## Usage
+
+`dcmodifydb` works on a database table, so we need a connection to a table within
+a database. 
+
+We set up a database table with sqlite using the `person` data set, but for your 
+use case you should connect to your database.
+
+```{r, echo=FALSE}
+knitr::kable(person)
+```
+
+
+```{r}
+con <- DBI::dbConnect(RSQLite::SQLite(), ":memory:")
+dplyr::copy_to(con, person)
+```
+
+
+We now retrieve a handle to the person table using `dplyr`
+
+```{r}
+person_tbl <- dplyr::tbl(con, "person")
+person_tbl
+```
+
+The person dataset clearly contains some errors that can be corrected. 
+We specify the corrections using modifier rules and apply them directly with 
+the function`modify_so`.
+
+First we correct that children can not have an income and that year must be a
+long year.
+
+```{r}
+library(dcmodify) # needed for modifying rules
+library(dcmodifydb) # needed to translate the rules
+modify_so( person_tbl
+         , if (age < 16) income = 0
+         , if (year < 25) year = year + 2000
+         )
+```
+
+Note that the corrections are made on a copy of the table by default, to avoid 
+accidents with the data.
+
+A better approach than directly applying corrections is to store the rules 
+in a `modifier` object and apply them in a separate step to a data base table.
+
+This makes it easier to maintain, use and document a set of rules.
+With `dcmodify` one can specify rules with the function `modifier`:
+
+```{r}
+# separate rule set
+m <- modifier( if (age < 16) income = 0
+             , if (year < 25) year = year + 2000
+             , if (cigarettes > 0 ) smokes = "yes"
+             , if (smokes == "no") cigarettes = 0
+             , ageclass <- if (age < 18) "child" else "adult"
+             , gender <- switch( toupper(gender)
+                               , "F" = "F"
+                               , "V" = "F" # common mistake
+                               , "M" = "M"
+                               , "NB"
+                               )
+             )
+```
+
+`m` is now a set of rules that can be applied to a `data.frame` or `tbl`.
+
+```{r}
+print(m)
+```
+
+- M3 corrects `smokes` is "no" for persons who smoke cigarettes.
+
+- M4 sets an unknown `cigarettes` to zero for non-smokers. 
+
+- M5 shows an example of deriving a new variable (`ageclass`) from existing 
+variables (`age`).
+
+- M6 shows an example of recoding, changing labels of categories to the allowed
+set of labels.
+
+```{r}
+# modify a copy of the table
+modify(person_tbl, m, copy = TRUE)
+```
+
+Note that the rules are executed sequentially, in the order that they are gven.
+For example the order of rule M3 and M4 matters: Rule M3 will change record 1 to a
+smoker, while rule M4 would set the number of cigarettes to 0. 
+This is intentional: correction rules often have an order in which they have to be
+applied.
+
+A nice properties of `modifier` rules, is that they can store extra metadata.
+They have a `name`, `label` and `description` that can be used to describe the
+intention and the why of a rule. An easy way of describing these properties is by
+exporting the ruleset to yaml and specify the rules using the yaml file.
+
+```{r, eval=FALSE}
+export_yaml(m, "corrections.yml")
+```
+
+In the export yml file we can label and describe the rules, but also add new 
+rules. Note that label and description are optional, but very much encouraged.
+
+_corrections.yml_
+```yaml
+```{r, result="asis", child="../inst/db/corrections.yml"}
+```
+```
+
+We can load these rules with:
+
+```{r, eval = FALSE}
+m <- modifier(.file = "corrections.yml")
+modify(person_tbl, m, copy = TRUE)
+```
+
+```{r, echo = FALSE}
+m <- modifier(.file = system.file("db/corrections.yml", package="dcmodifydb"))
+modify(person_tbl, m, copy = TRUE)
+```
+
+`modify` translates the modification rules into SQL code and executes the sql 
+queries on the database. For documentation or implementation purpose it can
+be useful to see the generated sql code, with the documented rules. 
+
+```{r dump, eval=FALSE}
+dump_sql(m, person_tbl, file = "corrections.sql")
+```
+
+_corrections.sql_:
+```SQL
+```{r, eval=TRUE, echo=FALSE, results='asis'}
+dump_sql(m, person_tbl)
+```
+
+```
+
+
+
